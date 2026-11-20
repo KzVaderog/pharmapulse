@@ -118,6 +118,37 @@ def evaluate_models(sp_model, cp_model, df: pd.DataFrame) -> dict:
         },
     }
 
+def task_b_evaluate_existing_model(new_batch: pd.DataFrame) -> tuple:
+    print("\n" + "=" * 65)
+    print("TASK B: EVALUATE EXISTING @champion MODEL ON NEW BATCH")
+    print("=" * 65)
+
+    client = setup_mlflow()
+    try:
+        client.get_model_version_by_alias(SPOILAGE_MODEL_NAME, "champion")
+    except Exception:
+        print("No @champion found in MLflow. Bootstrapping baseline v1 first...")
+        train_and_register(heatwave_regime=False, assign_alias="champion", run_tag="v1_baseline")
+
+    champ_sp = mlflow.sklearn.load_model(f"models:/{SPOILAGE_MODEL_NAME}@champion")
+    champ_cp = mlflow.sklearn.load_model(f"models:/{COMPRESSOR_MODEL_NAME}@champion")
+
+    champ_metrics = evaluate_models(champ_sp, champ_cp, new_batch)
+
+    report = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "evaluated_model": "@champion",
+        "batch_size": len(new_batch),
+        "metrics": champ_metrics,
+    }
+    report_path = os.path.join(REPORTS_DIR, "evaluation_report.json")
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2)
+
+    print("Regression (Time-to-Spoilage)     :", champ_metrics["regression_time_to_spoilage"])
+    print("Classification (Compressor Fail)  :", champ_metrics["classification_compressor_failure"])
+    print(f"Saved evaluation report -> {report_path}")
+    return champ_metrics, report_path
 
 def task_a_prepare_new_data() -> pd.DataFrame:
     print("\n" + "=" * 65)
@@ -147,6 +178,62 @@ def task_a_prepare_new_data() -> pd.DataFrame:
     )
     return new_batch
 
+def task_c_retrain_candidate(new_batch: pd.DataFrame) -> tuple:
+    print("\n" + "=" * 65)
+    print("TASK C: RETRAIN CANDIDATE MODEL (EXISTING + NEW DATA)")
+    print("=" * 65)
+
+    if os.path.exists(REFERENCE_DATA_PATH):
+        existing_df = pd.read_parquet(REFERENCE_DATA_PATH)
+    else:
+        existing_df = generate_cold_chain_dataset(n_samples=2500, seed=42, heatwave_regime=False)
+
+    new_clean = new_batch[FEATURE_COLUMNS + ["time_to_spoilage", "compressor_failure"]]
+    combined_df = pd.concat([existing_df, new_clean], ignore_index=True)
+
+    X = combined_df[FEATURE_COLUMNS]
+    y_sp = combined_df["time_to_spoilage"]
+    y_cp = combined_df["compressor_failure"]
+
+    X_train, X_val, y_sp_train, y_sp_val, y_cp_train, y_cp_val = train_test_split(
+        X, y_sp, y_cp, test_size=0.2, random_state=42
+    )
+
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment("PharmaPulse_ColdChain_AIOps")
+
+    with mlflow.start_run(run_name="candidate_retrain_assessment") as run:
+        cand_sp = lgb.LGBMRegressor(
+            n_estimators=160, learning_rate=0.06, max_depth=6, num_leaves=31, random_state=42, verbose=-1
+        )
+        cand_sp.fit(X_train, y_sp_train)
+
+        cand_cp = GradientBoostingClassifier(
+            n_estimators=140, learning_rate=0.07, max_depth=4, random_state=42
+        )
+        cand_cp.fit(X_train, y_cp_train)
+
+        # Evaluate candidate on the same new labelled batch for fair comparison
+        cand_metrics = evaluate_models(cand_sp, cand_cp, new_batch)
+
+        mlflow.log_param("combined_rows", len(combined_df))
+        mlflow.log_metric("candidate_rmse", cand_metrics["regression_time_to_spoilage"]["rmse"])
+        mlflow.log_metric("candidate_f1", cand_metrics["classification_compressor_failure"]["f1_score"])
+
+        sp_path = os.path.join(ARTIFACTS_DIR, "candidate_spoilage_model.joblib")
+        cp_path = os.path.join(ARTIFACTS_DIR, "candidate_compressor_model.joblib")
+        joblib.dump(cand_sp, sp_path)
+        joblib.dump(cand_cp, cp_path)
+
+        mlflow.log_artifact(sp_path)
+        mlflow.log_artifact(cp_path)
+
+    print(f"Combined Training Dataset: {len(combined_df)} rows")
+    print(f"MLflow Run ID            : {run.info.run_id}")
+    print(f"Saved Candidate Artifacts: {sp_path}, {cp_path}")
+    print("Candidate Regression     :", cand_metrics["regression_time_to_spoilage"])
+    print("Candidate Classification :", cand_metrics["classification_compressor_failure"])
+    return cand_metrics, run.info.run_id, [sp_path, cp_path]
 
 def task_b_evaluate_existing_model(baseline_df: pd.DataFrame, new_batch: pd.DataFrame) -> dict:
     print("\n" + "=" * 65)
