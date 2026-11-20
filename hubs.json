@@ -1,0 +1,8 @@
+﻿[
+  {"hub_id": "HUB-BLR-01", "name": "Bengaluru Cryo-Vault North (Devanahalli)", "city": "Bengaluru", "lat": 13.1986, "lon": 77.7066, "capacity_bays": 12, "temp_range": "2.0C - 8.0C"},
+  {"hub_id": "HUB-BLR-02", "name": "Electronic City Biologics Depot", "city": "Bengaluru", "lat": 12.8399, "lon": 77.6770, "capacity_bays": 8, "temp_range": "2.0C - 8.0C"},
+  {"hub_id": "HUB-MUM-01", "name": "Navi Mumbai Cold-Chain Terminal", "city": "Mumbai", "lat": 19.0330, "lon": 73.0297, "capacity_bays": 16, "temp_range": "2.0C - 8.0C"},
+  {"hub_id": "HUB-HYD-01", "name": "Genome Valley Pharma Hub", "city": "Hyderabad", "lat": 17.6499, "lon": 78.5736, "capacity_bays": 14, "temp_range": "2.0C - 8.0C"},
+  {"hub_id": "HUB-DEL-01", "name": "IGI Airport Cold-Chain Annex", "city": "New Delhi", "lat": 28.5562, "lon": 77.1000, "capacity_bays": 18, "temp_range": "2.0C - 8.0C"},
+  {"hub_id": "HUB-CHN-01", "name": "Sriperumbudur Vaccine Logistics Center", "city": "Chennai", "lat": 12.9675, "lon": 79.9419, "capacity_bays": 10, "temp_range": "2.0C - 8.0C"}
+]

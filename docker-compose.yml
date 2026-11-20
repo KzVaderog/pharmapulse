@@ -1,0 +1,21 @@
+﻿services:
+  pharmapulse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pharmapulse-platform
+    ports:
+      - "8000:8000"
+      - "5000:5000"
+    environment:
+      - MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+      - MLFLOW_ARTIFACT_ROOT=/app/mlruns
+    volumes:
+      - ./mlruns:/app/mlruns
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    restart: unless-stopped

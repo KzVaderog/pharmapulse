@@ -1,0 +1,190 @@
+﻿<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PharmaPulse | Cold-Chain AIOps & MLOps Spatial Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <style>
+    body { background-color: #0B0F19; color: #E2E8F0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .glass { background: rgba(17, 24, 39, 0.72); backdrop-filter: blur(14px); border: 1px solid rgba(56, 189, 248, 0.16); }
+    .glass-danger { background: rgba(69, 10, 10, 0.55); border: 1px solid rgba(248, 113, 113, 0.45); }
+    #map { height: 430px; width: 100%; border-radius: 0.75rem; z-index: 1; }
+    .leaflet-container { background: #090d16; }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+  <header class="glass rounded-2xl p-4 mb-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 font-bold text-lg">PP</div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl font-bold tracking-tight text-white">PharmaPulse Spatial Command Center</h1>
+          <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">2C-8C ICH Q1A</span>
+        </div>
+        <p class="text-xs text-slate-400">Autonomous Cold-Chain Spoilage Prevention • Pydantic v2 Quarantine • MLflow Champion/Challenger • Evidently Drift Loop</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2.5 text-xs">
+      <div class="px-3 py-1.5 rounded-lg bg-slate-900/90 border border-sky-500/30"><span class="text-slate-400">@champion:</span><span id="badge-champion" class="font-mono font-bold text-sky-400 ml-1">v1</span></div>
+      <div class="px-3 py-1.5 rounded-lg bg-slate-900/90 border border-purple-500/30"><span class="text-slate-400">@challenger:</span><span id="badge-challenger" class="font-mono font-bold text-purple-300 ml-1">None</span></div>
+      <a href="/metrics" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-900/90 border border-slate-700 hover:border-sky-400 text-slate-300 transition">Prometheus /metrics</a>
+    </div>
+  </header>
+  <section class="glass rounded-2xl p-4 mb-5">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+      <div>
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-sky-400">AIOps Chaos Injection &amp; Continuous Training Controls</h2>
+        <p id="action-banner" class="text-xs text-slate-400 mt-0.5">System nominal. Streaming real-time ICH Q1A MKT &amp; dual ML risk scores.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="triggerChaos('/api/chaos/compressor-wear?truck_id=' + selectedTruckId, 'Injecting Compressor Wear...')" class="px-3 py-2 rounded-xl text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">1. Inject Compressor Wear</button>
+        <button onclick="triggerChaos('/api/chaos/heatwave', 'Simulating 45C Heatwave Drift...')" class="px-3 py-2 rounded-xl text-xs font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40">2. Simulate 45C Heatwave Drift</button>
+        <button onclick="triggerChaos('/api/chaos/corrupt-packet?truck_id=' + selectedTruckId, 'Sending Corrupted Packet...')" class="px-3 py-2 rounded-xl text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40">3. Send Corrupted Sensor Packet</button>
+        <button id="btn-retrain" onclick="triggerRetrain()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-500/25 text-sky-200 border border-sky-400/50">4. Drift &amp; Retrain (pytest Gate)</button>
+        <button onclick="triggerChaos('/rollback', 'Rolling back to v1...')" class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-600">5. Rollback to v1</button>
+      </div>
+    </div>
+  </section>
+  <div class="grid grid-cols-1 xl:grid-cols-12 gap-5 mb-5">
+    <div class="xl:col-span-7 glass rounded-2xl p-4"><div id="map"></div></div>
+    <div class="xl:col-span-5 flex flex-col gap-5">
+      <div class="glass rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-bold text-white">Vehicle Thermodynamic Inspector</h2>
+          <select id="truck-selector" onchange="selectTruck(this.value)" class="bg-slate-900 border border-sky-500/40 rounded-lg px-2.5 py-1 text-xs font-mono text-sky-300">
+            <option value="TRK-101">TRK-101</option><option value="TRK-102">TRK-102</option><option value="TRK-103">TRK-103</option><option value="TRK-104">TRK-104</option>
+          </select>
+        </div>
+        <div id="truck-detail-card" class="space-y-3"></div>
+      </div>
+      <div class="glass rounded-2xl p-4">
+        <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">Drift Score (<span id="drift-method">ks</span>)</span><span id="drift-score-text" class="font-mono font-bold text-sky-300">0.040</span></div>
+        <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden mb-2"><div id="drift-bar" class="bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 h-2.5 rounded-full transition-all duration-500" style="width: 4%"></div></div>
+        <p id="drifted-features-text" class="text-[11px] text-slate-400">Drifted features: None</p>
+        <div class="border-t border-slate-800 pt-2.5 mt-2.5">
+          <div class="text-xs font-semibold text-purple-300 mb-1">Shadow Telemetry (@champion vs @challenger)</div>
+          <div id="shadow-readout" class="text-xs text-slate-400 font-mono bg-slate-900/80 p-2 rounded-lg">Awaiting @challenger...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <div class="glass rounded-2xl p-4">
+      <div class="flex items-center justify-between mb-2"><h3 class="text-sm font-bold text-white">Autonomous Reroutes</h3><span id="reroute-count" class="px-2 py-0.5 text-xs font-mono rounded bg-sky-500/20 text-sky-300">0</span></div>
+      <div id="remediation-list" class="space-y-2 max-h-44 overflow-y-auto text-xs"></div>
+    </div>
+    <div class="glass rounded-2xl p-4">
+      <div class="flex items-center justify-between mb-2"><h3 class="text-sm font-bold text-white">Pydantic v2 Quarantine Log</h3><span id="quarantine-count" class="px-2 py-0.5 text-xs font-mono rounded bg-rose-500/20 text-rose-300">0</span></div>
+      <div id="quarantine-list" class="space-y-2 max-h-44 overflow-y-auto text-xs"></div>
+    </div>
+  </div>
+  <script>
+    let selectedTruckId = 'TRK-101';
+    let latestState = null;
+    const map = L.map('map').setView([20.5, 77.5], 5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(map);
+    const hubMarkers = {}, truckMarkers = {}, rerouteLines = {};
+
+    function selectTruck(tid) { selectedTruckId = tid; if (latestState) renderTruckInspector(latestState); }
+    function statusColor(s) { return s === 'CRITICAL_REROUTE' ? '#F43F5E' : s === 'WARNING' ? '#F59E0B' : '#10B981'; }
+
+    function renderMap(state) {
+      state.hubs.forEach(hub => {
+        if (!hubMarkers[hub.hub_id]) {
+          const icon = L.divIcon({ className: '', html: '<div style="width:14px;height:14px;background:#38BDF8;border:2px solid #0B0F19;border-radius:3px;"></div>', iconSize: [14, 14] });
+          hubMarkers[hub.hub_id] = L.marker([hub.lat, hub.lon], { icon }).addTo(map).bindPopup('<b>' + hub.name + '</b><br/>' + hub.hub_id);
+        }
+      });
+      state.fleet.forEach(truck => {
+        const c = statusColor(truck.status);
+        const icon = L.divIcon({ className: '', html: '<div style="width:16px;height:16px;background:' + c + ';border:2px solid #fff;border-radius:50%;"></div>', iconSize: [16, 16] });
+        const html = '<b>' + truck.truck_id + '</b> (' + truck.status + ')<br/>Cabin: ' + truck.cabin_temp + 'C | MKT: ' + truck.mkt_temp + 'C<br/>ETA: <b>' + truck.time_to_spoilage + 'm</b>';
+        if (!truckMarkers[truck.truck_id]) {
+          truckMarkers[truck.truck_id] = L.marker([truck.lat, truck.lon], { icon }).addTo(map).bindPopup(html).on('click', () => { document.getElementById('truck-selector').value = truck.truck_id; selectTruck(truck.truck_id); });
+        } else {
+          truckMarkers[truck.truck_id].setLatLng([truck.lat, truck.lon]).setIcon(icon).setPopupContent(html);
+        }
+        if (truck.reroute) {
+          const coords = [[truck.lat, truck.lon], [truck.reroute.hub_lat, truck.reroute.hub_lon]];
+          if (!rerouteLines[truck.truck_id]) rerouteLines[truck.truck_id] = L.polyline(coords, { color: '#F43F5E', weight: 3, dashArray: '8, 8' }).addTo(map);
+          else rerouteLines[truck.truck_id].setLatLngs(coords);
+        } else if (rerouteLines[truck.truck_id]) {
+          map.removeLayer(rerouteLines[truck.truck_id]); delete rerouteLines[truck.truck_id];
+        }
+      });
+    }
+
+    function renderTruckInspector(state) {
+      const truck = state.fleet.find(t => t.truck_id === selectedTruckId) || state.fleet[0];
+      if (!truck) return;
+      const badge = truck.status === 'CRITICAL_REROUTE' ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : truck.status === 'WARNING' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+      const rerouteHtml = truck.reroute ? '<div class="p-2.5 rounded-xl glass-danger text-xs text-rose-200"><div class="font-bold">REROUTE -> ' + truck.reroute.hub_name + '</div><div class="font-mono mt-0.5">Dock: <b>' + truck.reroute.reserved_bay + '</b> (' + truck.reroute.distance_km + ' km) • ' + truck.reroute.trigger_reason + '</div></div>' : '';
+      document.getElementById('truck-detail-card').innerHTML =
+        '<div class="flex items-center justify-between"><div><div class="text-xs font-semibold text-white">' + truck.cargo + '</div><div class="text-[11px] text-slate-400">' + truck.route_name + '</div></div><span class="px-2.5 py-1 rounded-full text-xs font-bold border ' + badge + '">' + truck.status + '</span></div>' +
+        '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">' +
+          '<div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800"><div class="text-[10px] text-slate-400">CABIN</div><div class="text-sm font-mono font-bold text-white">' + truck.cabin_temp + 'C</div></div>' +
+          '<div class="bg-slate-900/80 p-2 rounded-xl border border-sky-500/30"><div class="text-[10px] text-sky-400">MKT</div><div class="text-sm font-mono font-bold text-sky-300">' + truck.mkt_temp + 'C</div></div>' +
+          '<div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800"><div class="text-[10px] text-slate-400">AMB / VIB</div><div class="text-xs font-mono font-bold text-slate-200">' + truck.ambient_temp + 'C / ' + truck.compressor_vibration_hz + 'Hz</div></div>' +
+          '<div class="bg-slate-900/80 p-2 rounded-xl border border-amber-500/30"><div class="text-[10px] text-amber-400">ETA</div><div class="text-sm font-mono font-bold text-amber-300">' + truck.time_to_spoilage + 'm</div></div>' +
+        '</div>' +
+        '<div class="flex justify-between text-xs bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-800"><span class="text-slate-400">Compressor Failure Prob:</span><span class="font-mono font-bold ' + (truck.compressor_failure_prob > 0.75 ? 'text-rose-400' : 'text-emerald-400') + '">' + (truck.compressor_failure_prob * 100).toFixed(1) + '%</span></div>' +
+        rerouteHtml;
+      document.getElementById('shadow-readout').innerHTML = truck.shadow
+        ? '<div>@champion (' + state.models.champion_version + '): <b>' + truck.time_to_spoilage + 'm</b> (' + truck.shadow.champion_latency_ms + 'ms)</div><div>@challenger (v' + truck.shadow.challenger_version + '): <b>' + truck.shadow.challenger_tts + 'm</b> • Delta: <b>' + (truck.shadow.tts_delta > 0 ? '+' : '') + truck.shadow.tts_delta + 'm</b></div>'
+        : (state.models.challenger_version ? '@challenger v' + state.models.challenger_version + ' active.' : 'No @challenger model registered.');
+    }
+
+    function renderListsAndDrift(state) {
+      document.getElementById('badge-champion').textContent = 'v' + state.models.champion_version + ' (' + state.models.champion_tag + ')';
+      document.getElementById('badge-challenger').textContent = state.models.challenger_version ? 'v' + state.models.challenger_version + ' (' + state.models.challenger_tag + ')' : 'None';
+      const d = state.drift.drift_score || 0;
+      document.getElementById('drift-score-text').textContent = d.toFixed(3);
+      document.getElementById('drift-method').textContent = state.drift.method || 'ks';
+      document.getElementById('drift-bar').style.width = Math.min(100, Math.round(d * 100)) + '%';
+      document.getElementById('drifted-features-text').textContent = 'Drifted features: ' + (state.drift.drifted_features?.length ? state.drift.drifted_features.join(', ') : 'None');
+      document.getElementById('reroute-count').textContent = state.counters.autonomous_reroutes;
+      document.getElementById('remediation-list').innerHTML = state.remediation_log.length
+        ? state.remediation_log.map(i => '<div class="p-2 rounded-lg bg-slate-900/90 border border-sky-500/20 flex justify-between gap-2"><div><span class="font-mono font-bold text-sky-300">[' + i.truck_id + ']</span> ' + i.action + '<div class="text-[11px] text-slate-400">' + i.reason + '</div></div><span class="text-[10px] font-mono text-slate-500">' + i.timestamp + '</span></div>').join('')
+        : '<div class="text-slate-500 italic">No reroutes yet.</div>';
+      document.getElementById('quarantine-count').textContent = state.counters.quarantined_packets;
+      document.getElementById('quarantine-list').innerHTML = state.quarantine_log.length
+        ? state.quarantine_log.map(i => '<div class="p-2 rounded-lg bg-rose-950/30 border border-rose-500/30 flex justify-between gap-2"><div><span class="font-mono font-bold text-rose-300">[' + i.truck_id + ']</span> Rejected <code>' + i.field + '=' + i.bad_value + '</code><div class="text-[11px] text-rose-300/80">' + i.reason + '</div></div><span class="text-[10px] font-mono text-slate-400">' + i.timestamp + '</span></div>').join('')
+        : '<div class="text-slate-500 italic">Zero quarantined packets.</div>';
+    }
+
+    async function fetchState() {
+      const res = await fetch('/api/state');
+      latestState = await res.json();
+      renderMap(latestState);
+      renderTruckInspector(latestState);
+      renderListsAndDrift(latestState);
+    }
+
+    async function triggerChaos(endpoint, msg) {
+      const b = document.getElementById('action-banner');
+      b.textContent = msg;
+      const res = await fetch(endpoint, { method: 'POST' });
+      const d = await res.json();
+      b.textContent = 'Done: ' + (d.status || 'OK');
+      await fetchState();
+    }
+
+    async function triggerRetrain() {
+      const btn = document.getElementById('btn-retrain');
+      const b = document.getElementById('action-banner');
+      btn.disabled = true; btn.textContent = 'Training v2...'; b.textContent = 'Running retrain & pytest gates...';
+      const res = await fetch('/api/retrain', { method: 'POST' });
+      const d = await res.json();
+      b.textContent = d.promoted ? 'Promoted v' + d.champion_version + ' to @champion (Heatwave RMSE: ' + d.metrics.heatwave_rmse + 'm).' : 'Rejected by gates (code ' + d.pytest_exit_code + ').';
+      btn.disabled = false; btn.textContent = '4. Drift & Retrain (pytest Gate)';
+      await fetchState();
+    }
+
+    fetchState();
+    setInterval(fetchState, 2000);
+  </script>
+</body>
+</html>
