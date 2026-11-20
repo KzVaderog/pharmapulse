@@ -1,4 +1,6 @@
-# PharmaPulse ? Cold-Chain AIOps & MLOps Platform
+# PharmaPulse — Cold-Chain AIOps & MLOps Platform
+
+[![PharmaPulse CI](https://github.com/KzVaderog/pharmapulse/actions/workflows/ci.yml/badge.svg)](https://github.com/KzVaderog/pharmapulse/actions/workflows/ci.yml)
 
 Dockerized cold-chain pharmaceutical spoilage prevention and fleet telemetry AIOps/MLOps platform built with **Python 3.11**, **FastAPI**, **MLflow**, **LightGBM**, **Scikit-learn**, **Evidently AI**, and **Prometheus**.
 
@@ -12,4 +14,3 @@ Dockerized cold-chain pharmaceutical spoilage prevention and fleet telemetry AIO
 
 ## Quick Start (Docker Compose)
 ```bash
-docker compose up --build -d
