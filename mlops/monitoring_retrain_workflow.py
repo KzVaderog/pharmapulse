@@ -180,6 +180,50 @@ def task_c_retrain_candidate(new_batch: pd.DataFrame) -> tuple:
     return cand_metrics, run.info.run_id, [sp_path, cp_path]
 
 
+def task_d_quality_gate(champ_metrics: dict, cand_metrics: dict, run_id: str, artifacts: list):
+    print("\n" + "=" * 65)
+    print("TASK D: QUALITY GATE DECISION (NEVER OVERWRITE BLINDLY)")
+    print("=" * 65)
+
+    champ_rmse = champ_metrics["regression_time_to_spoilage"]["rmse"]
+    cand_rmse = cand_metrics["regression_time_to_spoilage"]["rmse"]
+
+    champ_f1 = champ_metrics["classification_compressor_failure"]["f1_score"]
+    cand_f1 = cand_metrics["classification_compressor_failure"]["f1_score"]
+
+    # Quality Gate Rule: Candidate must improve RMSE (lower) AND maintain/improve F1-score
+    rmse_improved = cand_rmse < champ_rmse
+    f1_acceptable = cand_f1 >= (champ_f1 - 0.01)
+    eligible = rmse_improved and f1_acceptable
+
+    decision = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "mlflow_run_id": run_id,
+        "candidate_artifacts": artifacts,
+        "comparison": {
+            "champion_rmse": champ_rmse,
+            "candidate_rmse": cand_rmse,
+            "champion_f1": champ_f1,
+            "candidate_f1": cand_f1,
+        },
+        "criteria": "candidate_rmse < champion_rmse AND candidate_f1 >= champion_f1 - 0.01",
+        "decision": "ELIGIBLE_FOR_PROMOTION" if eligible else "RETAIN_CHAMPION",
+        "champion_overwritten": False,
+        "metric_justification": (
+            "RMSE is selected for Time-to-Spoilage because it heavily penalizes large prediction errors "
+            "that could cause missed vaccine spoilage windows. F1-score is selected for Compressor Failure "
+            "because it balances Recall (catching real failures) and Precision (avoiding false emergency reroutes)."
+        ),
+    }
+
+    decision_path = os.path.join(REPORTS_DIR, "quality_gate_decision.json")
+    with open(decision_path, "w", encoding="utf-8") as f:
+        json.dump(decision, f, indent=2)
+
+    print(f"Champion RMSE: {champ_rmse} vs Candidate RMSE: {cand_rmse}")
+    print(f"Champion F1  : {champ_f1} vs Candidate F1  : {cand_f1}")
+    print(f"FINAL DECISION: {decision['decision']} (Champion overwritten: False)")
+    print(f"Saved decision record -> {decision_path}")
 
 
 
